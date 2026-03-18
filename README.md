@@ -26,7 +26,9 @@
 
 <p align="center">
   <img src="https://github.com/metadore/Smartdoorlock/blob/main/WhatsApp%20Image%202026-03-18%20at%2010.41.37%20PM.jpeg" width="400"/>
-  <img src="YOUR_IMAGE_LINK_2" width="400"/>
+  <img src="https://github.com/metadore/Smartdoorlock/blob/main/WhatsApp%20Image%202026-03-18%20at%2010.41.53%20PM.jpeg" width="400"/>
+  <img src="">
+</p>
 </p>
 
 ---
