@@ -193,9 +193,7 @@ Auto Lock
 Smart-Guard/
  ├── SmartGuard.ino
  ├── README.md
- ├── assets/
- │    ├── images/
- │    └── videos/
+
 ```
 
 ---
