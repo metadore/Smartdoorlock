@@ -13,26 +13,30 @@ LedControl lc = LedControl(DIN_PIN, CLK_PIN, CS_PIN, 1);
 
 // Security Settings
 String secretPin = "1234"; 
+String inputPin = "";
 int wrongAttempts = 0;
 const int MAX_ATTEMPTS = 3;
 
 // Matrix Patterns
 byte faceHappy[8] = {0x3C,0x42,0xA5,0x81,0xA5,0x99,0x42,0x3C};
 byte faceLocked[8] = {0x3C,0x42,0x81,0x81,0x81,0x81,0x42,0x3C};
-byte faceAngry[8]  = {0x81,0x42,0x24,0x18,0x18,0x24,0x42,0x81}; // "X" Pattern
+byte faceAngry[8]  = {0x81,0x42,0x24,0x18,0x18,0x24,0x42,0x81};
 
 void setup() {
   Serial.begin(9600);
+  
   lcd.init();
   lcd.backlight();
+  
   myServo.attach(SERVO_PIN);
-  myServo.write(0); // Start Locked
+  myServo.write(0);
   
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   
   lc.shutdown(0, false);
   lc.setIntensity(0, 5);
+  lc.clearDisplay(0);
   
   lcd.print("SECURE BOOT...");
   delay(1500);
@@ -40,36 +44,63 @@ void setup() {
 }
 
 void loop() {
-  // 1. OUTSIDE ACCESS (Serial Monitor PIN)
-  if (Serial.available() > 0) {
-    String input = Serial.readStringUntil('\n');
-    input.trim();
-    
-    if (input == secretPin) {
-      wrongAttempts = 0; // Reset counter on success
-      accessGranted("PIN ACCEPTED");
-    } else {
-      wrongAttempts++;
-      playBadTone();
-      if (wrongAttempts >= MAX_ATTEMPTS) {
-        triggerLockout();
-      } else {
-        lcd.clear();
-        lcd.print("WRONG PIN!");
-        lcd.setCursor(0,1);
-        lcd.print("ATTEMPT: "); lcd.print(wrongAttempts);
-        delay(2000);
-        showLockedScreen();
+
+  // -------- SERIAL PIN INPUT WITH * DISPLAY --------
+  while (Serial.available()) {
+    char c = Serial.read();
+
+    if (c == '\n') {
+      checkPin();
+    } 
+    else if (c != '\r') {  // ignore carriage return
+      inputPin += c;
+
+      // 🔥 SHOW * ON LCD
+      lcd.clear();
+      lcd.print("ENTER PIN:");
+      lcd.setCursor(0,1);
+
+      for (int i = 0; i < inputPin.length(); i++) {
+        lcd.print("*");
       }
     }
   }
 
-  // 2. INSIDE ACCESS (Ultrasonic Wave)
-  if (getDistance() > 2 && getDistance() < 15) {
+  // -------- ULTRASONIC --------
+  long distance = getDistance();
+  if (distance > 2 && distance < 15) {
     accessGranted("EXIT WAVE");
   }
 }
 
+// -------- PIN CHECK --------
+void checkPin() {
+  inputPin.trim();
+
+  if (inputPin == secretPin) {
+    wrongAttempts = 0;
+    accessGranted("PIN ACCEPTED");
+  } else {
+    wrongAttempts++;
+    playBadTone();
+
+    if (wrongAttempts >= MAX_ATTEMPTS) {
+      triggerLockout();
+    } else {
+      lcd.clear();
+      lcd.print("WRONG PIN!");
+      lcd.setCursor(0,1);
+      lcd.print("ATTEMPT: ");
+      lcd.print(wrongAttempts);
+      delay(2000);
+      showLockedScreen();
+    }
+  }
+
+  inputPin = ""; // reset after check
+}
+
+// -------- DISTANCE --------
 long getDistance() {
   digitalWrite(TRIG_PIN, LOW); delayMicroseconds(2);
   digitalWrite(TRIG_PIN, HIGH); delayMicroseconds(10);
@@ -77,48 +108,54 @@ long getDistance() {
   return (pulseIn(ECHO_PIN, HIGH) / 2) / 29.1;
 }
 
+// -------- ACCESS --------
 void accessGranted(String msg) {
   lcd.clear();
   lcd.print("ACCESS GRANTED");
   lcd.setCursor(0,1);
   lcd.print(msg);
   
-  for(int i=0; i<8; i++) lc.setRow(0, i, faceHappy[i]); // Smiley
+  for(int i=0; i<8; i++) lc.setRow(0, i, faceHappy[i]);
+  
   playSuccessMusic();
   
-  myServo.write(90); // Move Servo to Unlock
-  delay(5000);       // Wait 5 seconds
+  myServo.write(90);
+  delay(5000);
   
-  myServo.write(0);  // Relock
+  myServo.write(0);
   showLockedScreen();
 }
 
+// -------- LOCKOUT --------
 void triggerLockout() {
   lcd.clear();
   lcd.print("SYSTEM LOCKED!");
   lcd.setCursor(0,1);
   lcd.print("WAIT 30 SECONDS");
   
-  for(int i=0; i<8; i++) lc.setRow(0, i, faceAngry[i]); // Show X
+  for(int i=0; i<8; i++) lc.setRow(0, i, faceAngry[i]);
   
-  for(int i=0; i<10; i++) { // Alarm sound
+  for(int i=0; i<10; i++) {
     tone(BUZZER_PIN, 200, 200); delay(300);
     tone(BUZZER_PIN, 150, 200); delay(300);
   }
   
-  delay(20000); // Remaining lockout time
+  delay(20000);
   wrongAttempts = 0;
   showLockedScreen();
 }
 
+// -------- UI --------
 void showLockedScreen() {
   lcd.clear();
   lcd.print("ENTER PIN:");
   lcd.setCursor(0,1);
   lcd.print("OR WAVE TO EXIT");
+  
   for(int i=0; i<8; i++) lc.setRow(0, i, faceLocked[i]);
 }
 
+// -------- SOUND --------
 void playSuccessMusic() {
   int melody[] = {440, 523, 659, 880}; 
   for (int i = 0; i < 4; i++) {
@@ -128,5 +165,5 @@ void playSuccessMusic() {
 }
 
 void playBadTone() {
-  tone(BUZZER_PIN, 100, 500); // Low, long buzzing sound
+  tone(BUZZER_PIN, 100, 500);
 }
